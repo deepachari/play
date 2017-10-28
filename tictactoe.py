@@ -1,10 +1,15 @@
 # simple tic-tac-toe game
 import random
 
+class Person(object):
+    def __init__(self, is_smart):
+        self.is_smart = is_smart
+
+
 
 class Player(object):
 
-    def __init__(self):
+    def __init__(self, smart_computer, smart_player):
 
         self.tictac = ['a1', 'a2', 'a3',
                        'b1', 'b2', 'b3',
@@ -19,6 +24,11 @@ class Player(object):
                                {1, 4, 7},
                                {2, 5, 8}]
 
+        self.smart_computer = smart_computer
+        self.smart_player = smart_player
+
+    # region Properties
+
     @property
     def player_moves(self):
         return set([index for index, place in enumerate(self.tictac) if place == 'x '])
@@ -31,19 +41,23 @@ class Player(object):
     def choices(self):
         return [index for index, place in enumerate(self.tictac) if place not in ('x ', 'o ')]
 
-    def pretty_print(self):
+    # endregion
 
-        s = ''
-        for i, x in enumerate(self.tictac):
-            s += ' {} '.format(self.tictac[i])
-            if i not in (2, 5, 8):
-                s += '|'
-            if i in (2, 5):
-                s += '\n----|----|----\n'
-        print s
-        print '\n'
+    # region Player Mechanics
 
     # takes a set of moves
+    def get_move(self, is_smart):
+        if not is_smart:
+            return random.choice(self.choices)
+
+        my_move = self.winning_move(self.my_moves)
+        if my_move is None:
+            my_move = self.winning_move(self.player_moves)
+        if my_move is None:
+            my_move = random.choice(self.choices)
+
+        return my_move
+
     def won(self, m):
 
         for combo in self.winning_combos:
@@ -59,14 +73,8 @@ class Player(object):
                     return blocker
         return None
 
-    def make_my_move(self):
-        my_move = self.winning_move(self.my_moves)
-        if my_move is None:
-            my_move = self.winning_move(self.player_moves)
-        if my_move is None:
-            my_move = random.choice(self.choices)
-
-        return my_move
+    def get_player_move(self):
+        return self.get_move(self.smart_player)
 
     def play(self):
         while self.choices and not self.won(self.player_moves) and not self.won(self.my_moves):
@@ -76,32 +84,29 @@ class Player(object):
             self.tictac[player_move] = 'x '
 
             if self.choices:
-                my_move = self.make_my_move()
+                my_move = self.get_move(self.smart_computer)
                 self.tictac[my_move] = 'o '
 
-        self.print_result()
-
-    def get_player_move(self):
-        return random.choice(self.choices)
-
-    def print_result(self):
         self.pretty_print()
+        return self.get_result()
+
+    def get_result(self):
         if self.won(self.player_moves):
-            print 'You won!!!'
+            return 'player'
         elif self.won(self.my_moves):
-            print 'YEEEAH I WON SUCKA'
+            return 'computer'
         elif not self.choices:
-            print 'It\'s a draw, pardner'
+            return 'draw'
         else:
-            print 'Game still ongoing'
+            raise Exception
+
+    # endregion
+
+    def pretty_print(self):
+        pass
 
 
 class InteractivePlayer(Player):
-
-    def play(self):
-        super(InteractivePlayer, self).play()
-
-
 
     def get_player_move(self):
         move = raw_input('Make a move! (a1, b2, etc)')
@@ -121,15 +126,53 @@ class InteractivePlayer(Player):
 
         return i
 
+    def play(self):
+        result = super(InteractivePlayer, self).play()
+        if result == 'player':
+            print "You won!!"
+        elif result == 'computer':
+            print "YOINKS! I WON!"
+        else:
+            print "It's a draw!"
 
-class RandomPlayer(Player):
-    def make_my_move(self):
-        return random.choice(self.choices)
+    def pretty_print(self):
+
+        s = ''
+        for i, x in enumerate(self.tictac):
+            s += ' {} '.format(self.tictac[i])
+            if i not in (2, 5, 8):
+                s += '|'
+            if i in (2, 5):
+                s += '\n----|----|----\n'
+        print s
+        print '\n'
 
 
-class Person:
-    def __init__(self):
-        self.name = ''
+def simulate(n):
+    p = Player(smart_computer=False, smart_player=False)
+    num_plays = 0
+    computer_wins = 0
+    player_wins = 0
+    draws = 0
+    for i in range(n):
+        result = p.play()
+        if result == 'computer':
+            computer_wins += 1
+        elif result == 'player':
+            player_wins += 1
+        elif result == 'draw':
+            draws += 1
+        else:
+            raise Exception
+        num_plays += 1
+    print '{} games played. ' \
+          '{} computer wins ({} percent). ' \
+          '{} player wins ({} percent). '\
+          '{} draws ({} percent).'\
+        .format(num_plays,
+                computer_wins, computer_wins * 100.0 / num_plays,
+                player_wins, player_wins * 100.0 / num_plays,
+                draws, draws * 100.0 / num_plays)
 
 
-InteractivePlayer().play()
+InteractivePlayer(smart_computer=True, smart_player=False).play()
