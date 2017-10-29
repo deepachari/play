@@ -1,19 +1,41 @@
 # simple tic-tac-toe game
 import random
 
-class Person(object):
-    def __init__(self, is_smart):
+
+class UserPlayer(object):
+    def __init__(self, name=None, gamepiece=None):
+
+        self.gamepiece = gamepiece
+        self.name = name
+
+        if not name:
+            self.name = raw_input('Enter your name: ')
+        print 'Hi {}!'.format(self.name)
+        while not self.gamepiece or len(self.gamepiece) > 1:
+            self.gamepiece = raw_input('Enter your gamepiece (**one character only**): ')
+
+        self.gamepiece += ' '  # for board alignment
+
+
+class AutoPlayer(object):
+    def __init__(self, gamepiece, is_smart, name=None):
+
+        if len(gamepiece) > 1:
+            raise Exception("ERROR: Invalid gamepiece (one character only)")
+
+        self.gamepiece = gamepiece + ' '  # for board alignment
+        self.name = name
         self.is_smart = is_smart
 
+        if not name:
+            self.name = 'Player' + str(random.randint(100, 1000))
 
 
-class Player(object):
+class Game(object):
 
-    def __init__(self, smart_computer, smart_player):
+    def __init__(self, player1, player2, pretty):
 
-        self.tictac = ['a1', 'a2', 'a3',
-                       'b1', 'b2', 'b3',
-                       'c1', 'c2', 'c3']
+        self.clear_board()
 
         self.winning_combos = [{0, 1, 2},
                                {3, 4, 5},
@@ -24,97 +46,71 @@ class Player(object):
                                {1, 4, 7},
                                {2, 5, 8}]
 
-        self.smart_computer = smart_computer
-        self.smart_player = smart_player
+        self.player1 = player1
+        self.player2 = player2
+        self.pretty = pretty
 
-    # region Properties
+        if (isinstance(player1, UserPlayer) or isinstance(player2, UserPlayer)) and not pretty:
+            raise Exception("ERROR: Invalid setup - one or more of the players is interactive, but we can't see the " \
+                            "board!")
 
-    @property
-    def player_moves(self):
-        return set([index for index, place in enumerate(self.tictac) if place == 'x '])
+        if player1.gamepiece == player2.gamepiece:
+            raise Exception("ERROR: Two players with the same gamepiece can't play.")
 
-    @property
-    def my_moves(self):
-        return set([index for index, place in enumerate(self.tictac) if place == 'o '])
+    # region Game Board
 
     @property
     def choices(self):
-        return [index for index, place in enumerate(self.tictac) if place not in ('x ', 'o ')]
+        return [index for index, place in enumerate(self.board) if place not in (self.player1.gamepiece,
+                                                                                 self.player2.gamepiece)]
+
+    def clear_board(self):
+        self.board = ['a1', 'a2', 'a3',
+                      'b1', 'b2', 'b3',
+                      'c1', 'c2', 'c3']
 
     # endregion
 
-    # region Player Mechanics
+    # region Player-Specific Info
 
-    # takes a set of moves
-    def get_move(self, is_smart):
-        if not is_smart:
+    def past_moves(self, player):
+        return set([index for index, place in enumerate(self.board) if place == player.gamepiece])
+
+    def next_move(self, current_player, other_player):
+
+        if isinstance(current_player, UserPlayer):
+            return self.get_user_input(current_player.name)
+
+        if not current_player.is_smart:
             return random.choice(self.choices)
 
-        my_move = self.winning_move(self.my_moves)
-        if my_move is None:
-            my_move = self.winning_move(self.player_moves)
-        if my_move is None:
-            my_move = random.choice(self.choices)
+        # prioritize making my own winning move
+        next_move = self.next_winning_move(current_player)
+        if next_move is None:
+            # if the other player is about to win, block them
+            next_move = self.next_winning_move(other_player)
+        if next_move is None:
+            # default to random
+            next_move = random.choice(self.choices)
 
-        return my_move
+        return next_move
 
-    def won(self, m):
-
+    def next_winning_move(self, player):  # helper to get_next_move
+        moves = self.past_moves(player)
         for combo in self.winning_combos:
-            if combo.issubset(m):
-                return True
-        return False
-
-    def winning_move(self, m):
-        for combo in self.winning_combos:
-            if len(combo.intersection(m)) == 2:
-                blocker = combo.difference(m).pop()
+            if len(combo.intersection(moves)) == 2:
+                blocker = combo.difference(moves).pop()
                 if blocker in self.choices:
                     return blocker
         return None
 
-    def get_player_move(self):
-        return self.get_move(self.smart_player)
-
-    def play(self):
-        while self.choices and not self.won(self.player_moves) and not self.won(self.my_moves):
-            self.pretty_print()
-
-            player_move = self.get_player_move()
-            self.tictac[player_move] = 'x '
-
-            if self.choices:
-                my_move = self.get_move(self.smart_computer)
-                self.tictac[my_move] = 'o '
-
-        self.pretty_print()
-        return self.get_result()
-
-    def get_result(self):
-        if self.won(self.player_moves):
-            return 'player'
-        elif self.won(self.my_moves):
-            return 'computer'
-        elif not self.choices:
-            return 'draw'
-        else:
-            raise Exception
-
-    # endregion
-
-    def pretty_print(self):
-        pass
-
-
-class InteractivePlayer(Player):
-
-    def get_player_move(self):
-        move = raw_input('Make a move! (a1, b2, etc)')
+    def get_user_input(self, name):
+        move = raw_input('\n{}, make a move (a1, b2, etc) '.format(name))
         i = None
 
         while i is None:
             try:
-                i = self.tictac.index(move)
+                i = self.board.index(move)
             except ValueError:
                 i = None
 
@@ -126,53 +122,141 @@ class InteractivePlayer(Player):
 
         return i
 
+    def has_won(self, player):
+
+        for combo in self.winning_combos:
+            if combo.issubset(self.past_moves(player)):
+                return True
+        return False
+
+    # endregion
+
+    # region Play Mechanics
+
     def play(self):
-        result = super(InteractivePlayer, self).play()
-        if result == 'player':
-            print "You won!!"
-        elif result == 'computer':
-            print "YOINKS! I WON!"
+
+        self.clear_board()
+
+        if self.pretty:
+            print 'Starting a new game! In one corner: {}. In the other: {}. BEGIN!'.format(self.player1.name,
+                                                                                            self.player2.name)
+            print self.pretty_board()
+
+        current_player = other_player = None
+        while self.choices and not self.has_won(self.player1) and not self.has_won(self.player2):
+
+            if not current_player or not other_player:
+                current_player = self.player1
+                other_player = self.player2
+            else:
+                temp = current_player
+                current_player = other_player
+                other_player = temp
+
+            move = self.next_move(current_player=current_player, other_player=other_player)
+            position = self.board[move]
+            self.board[move] = current_player.gamepiece
+
+            if self.pretty:
+                print self.pretty_board()
+                print "{} played {}".format(current_player.name, position)
+
+        # find out who won
+        if self.has_won(self.player1):
+            winner = self.player1.name
+        elif self.has_won(self.player2):
+            winner = self.player2.name
+        elif not self.choices:
+            winner = None
         else:
-            print "It's a draw!"
+            raise Exception("ERROR: Can't retrieve the winner")
 
-    def pretty_print(self):
+        if self.pretty:
+            if winner:
+                print "\n{} won!!!".format(winner)
+            else:
+                print "\nIt's a draw, pardner"
 
-        s = ''
-        for i, x in enumerate(self.tictac):
-            s += ' {} '.format(self.tictac[i])
+        return winner
+
+    def pretty_board(self):
+
+        s = '\n'
+        for i, x in enumerate(self.board):
+            s += ' {} '.format(self.board[i])
             if i not in (2, 5, 8):
                 s += '|'
             if i in (2, 5):
                 s += '\n----|----|----\n'
-        print s
-        print '\n'
+        s += '\n'
+
+        return s
+
+    # endregion
+
+    pass  # so region above will fold
 
 
-def simulate(n):
-    p = Player(smart_computer=False, smart_player=False)
-    num_plays = 0
-    computer_wins = 0
-    player_wins = 0
-    draws = 0
-    for i in range(n):
-        result = p.play()
-        if result == 'computer':
-            computer_wins += 1
-        elif result == 'player':
-            player_wins += 1
-        elif result == 'draw':
-            draws += 1
-        else:
-            raise Exception
-        num_plays += 1
-    print '{} games played. ' \
-          '{} computer wins ({} percent). ' \
-          '{} player wins ({} percent). '\
-          '{} draws ({} percent).'\
-        .format(num_plays,
-                computer_wins, computer_wins * 100.0 / num_plays,
-                player_wins, player_wins * 100.0 / num_plays,
-                draws, draws * 100.0 / num_plays)
+class Simulator(object):
+
+    def __init__(self, game, num_iterations):
+
+        self.game = game
+        self.num_iterations = num_iterations
+        self.num_player1_wins = None
+        self.num_player2_wins = None
+        self.draws = None
+
+        if not isinstance(game.player1, AutoPlayer) or not isinstance(game.player2, AutoPlayer):
+            raise Exception("ERROR: Can't simulate with a non-automatic player!")
+
+    # returns array: [num player1 wins, num player2 wins, num draws]
+    def simulate(self):
+
+        self.num_player1_wins = self.num_player2_wins = self.draws = 0
+        printed = []
+
+        for i in range(self.num_iterations):
+            winner = self.game.play()
+
+            if not winner:
+                self.draws += 1
+            elif winner == self.game.player1.name:
+                self.num_player1_wins += 1
+            elif winner == self.game.player2.name:
+                self.num_player2_wins += 1
+            else:
+                raise Exception("ERROR: Unexpected winner received from Game.play()")
+
+            # counter
+            percent_done = int(i * 100.0 / self.num_iterations)
+            if percent_done % 5 == 0 and percent_done not in printed:
+                print '...{}%'.format(percent_done)
+            printed.append(percent_done)
+
+        return
+
+    def print_result(self):
+
+        player1_percent = self.num_player1_wins * 100.0 / self.num_iterations
+        player2_percent = self.num_player2_wins * 100.0 / self.num_iterations
+        draw_percent = self.draws * 100.0 / self.num_iterations
+
+        print "{} won {} games ({} percent). \n" \
+              "{} won {} games ({} percent). \n" \
+              "Players drew {} games ({} percent)."\
+            .format(self.game.player1.name, self.num_player1_wins, player1_percent,
+                    self.game.player2.name, self.num_player2_wins, player2_percent,
+                    self.draws, draw_percent)
 
 
-InteractivePlayer(smart_computer=True, smart_player=False).play()
+# player1 = UserPlayer(gamepiece='x', name='Steve')
+player1 = AutoPlayer(gamepiece='x', is_smart=True, name='Smart1')
+player2 = AutoPlayer(gamepiece='o', is_smart=True, name='Smart2')
+
+# Game(player1=player1, player2=player2, pretty=True).play()
+mygame = Game(player1=player1, player2=player2, pretty=False)
+
+sim = Simulator(mygame, 50000)
+sim.simulate()
+sim.print_result()
