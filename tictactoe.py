@@ -1,48 +1,19 @@
 # simple tic-tac-toe game
 import player
+from gameboard import GameBoard
 
 
-class GameBoard(object):
-    def __init__(self):
-        self.WIN_COMBOS = [{0, 1, 2},
-                           {3, 4, 5},
-                           {6, 7, 8},
-                           {0, 4, 8},
-                           {2, 4, 6},
-                           {0, 3, 6},
-                           {1, 4, 7},
-                           {2, 5, 8}]
-        self.board = range(9)
-
-    def clear(self):
-        self.board = range(9)
-
-    @property
-    def choices(self):
-        return [x for x in self.board if x in range(9)]
-
-    def __str__(self):
-
-        b = self.board
-
-        s = '\n'
-
-        s += '  {}  |  {}  |  {}  '.format(b[0], b[1], b[2])
-        s += '\n-----|-----|-----\n'
-        s += '  {}  |  {}  |  {}  '.format(b[3], b[4], b[5])
-        s += '\n-----|-----|-----\n'
-        s += '  {}  |  {}  |  {}  '.format(b[6], b[7], b[8])
-
-        s += '\n'
-
-        return s
-
-
+# given two players, play a game of tic-tac-toe
 class Game(object):
 
     def __init__(self, player1, player2, pretty=False):
+        """
+        :param player1: Player object; represents the player who will go first
+        :param player2: Player object; represents the player who will go second
+        :param pretty: Bool indicating whether to print friendly messages + the board after each turn
+        """
 
-        self.board = GameBoard()
+        self.board = GameBoard([player1.gamepiece, player2.gamepiece])
 
         self.player1 = player1
         self.player2 = player2
@@ -57,8 +28,9 @@ class Game(object):
             raise Exception("ERROR: Two players with the same gamepiece can't play.")
 
     def play(self):
+        """:returns: the name of the player who won, or None in case of a draw"""
 
-        self.board.clear()
+        self.board.reset()
 
         if self.pretty:
             print 'Starting a new game! In one corner: {}. In the other: {}. BEGIN!'.format(self.player1.name,
@@ -67,7 +39,9 @@ class Game(object):
 
         # take turns making a move
         current_player = other_player = None
-        while self.board.choices and not self.player1.has_won(self.board) and not self.player2.has_won(self.board):
+        while not self.player1.has_won(self.board) \
+                and not self.player2.has_won(self.board) \
+                and self.board.potential_wins:
 
             # switch the current player
             if not current_player or not other_player:
@@ -90,7 +64,7 @@ class Game(object):
             winner = self.player1.name
         elif self.player2.has_won(self.board):
             winner = self.player2.name
-        elif not self.board.choices:
+        elif not self.board.potential_wins:
             winner = None
         else:
             raise Exception("ERROR: Can't retrieve the winner")
@@ -104,9 +78,14 @@ class Game(object):
         return winner
 
 
+# run several games of tic-tac-toe in a row and print statistics
 class Simulator(object):
 
     def __init__(self, game, num_iterations):
+        """
+        :param game: Game object to simulate; can be given two players of varying intelligence
+        :param num_iterations: total number of times to play
+        """
 
         self.game = game
         self.num_iterations = num_iterations
@@ -117,8 +96,8 @@ class Simulator(object):
         if isinstance(game.player1, player.HumanPlayer) or isinstance(game.player2, player.HumanPlayer):
             raise Exception("ERROR: Can't simulate with a non-automatic player!")
 
-    # returns array: [num player1 wins, num player2 wins, num draws]
-    def simulate(self):
+    def run(self):
+        """:returns: array [num player1 wins, num player2 wins, num draws]"""
 
         self.num_player1_wins = self.num_player2_wins = self.draws = 0
         printed = []
@@ -158,12 +137,12 @@ class Simulator(object):
 
 
 # player1 = UserPlayer(gamepiece='x', name='Steve')
-player1 = player.SmartAutoPlayer(gamepiece='A', name='Smart')
-player2 = player.RandomAutoPlayer(gamepiece='B', name='Dumb')
-#
-# Game(player1=player1, player2=player2, pretty=True).play()
-mygame = Game(player1=player1, player2=player2)
+player1 = player.HumanPlayer(gamepiece='A', name='Player1')
+player2 = player.CleverPlayer(gamepiece='B', name='Player2')
 
-sim = Simulator(mygame, 10000)
-sim.simulate()
-sim.print_result()
+Game(player1=player1, player2=player2, pretty=True).play()
+# mygame = Game(player1=player1, player2=player2)
+
+# sim = Simulator(mygame, 10000)
+# sim.simulate()
+# sim.print_result()
